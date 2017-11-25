@@ -67,6 +67,8 @@ class Litfetch():
             # Write a de-duplicated list as a CSV
             print('De-duplicating list...')
             self.deDuplicatePapers()
+        else:
+            print('Uh oh, I don\'t know what '+selection+' is?')
 
     def googleScholar(self):
         # Reset the file
@@ -196,7 +198,58 @@ class Litfetch():
 
     def ieeeXplore(self):
         # http://ieeexploreapi.ieee.org/api/v1/search/articles?format=json&apikey='+self.config['ieeeKey']+'&querytext=
-        pass
+        # Crossref ID 263
+        # Using Crossref API: https://github.com/sckott/habanero
+        cr = Crossref()
+
+        # Reset the file
+        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        f = open('review-search-ieee.csv', "w+")
+        f.close()
+        # Append to the CSV
+        with open(r'review-search-ieee.csv', 'a', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(csvHeader)
+
+        # Get the Google scholar papers
+        for terms in self.secondaryTerms:
+            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
+            secondaryTerms = ' OR '.join(terms)
+            searchString = searchString+secondaryTerms+')'
+            #print(searchString)
+
+            searchURL = 'https://api.crossref.org/works?mailto=rob.dunne@manchester.ac.uk&rows=100&from-index-date=2011member=263&query='+searchString;
+            #print(searchURL)
+
+            print('Searching IEEEvia Crossref for: '+searchString+'.')
+            print('Found:')
+
+            results = cr.works(query=searchString, limit=30, order='desc', filter={'from-pub-date':'2011', 'member': '263'})
+            for paper in results['message']['items']:
+                print(paper['title'][0])
+
+                paperTitle = paper['title'][0]
+                paperAuthors = ''
+                try:
+                    for author in paper['author']:
+                        paperAuthors = author['family']+','+author['given']+', '+paperAuthors
+                except KeyError:
+                    paperAuthors = 'Not available'
+
+                paperYear = paper['created']['date-parts'][0][0]
+                try:
+                    paperSource = paper['link'][0]['URL']
+                except KeyError:
+                    paperSource = 'Not available'
+
+                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'IEEE - Crossref', paperSource, searchURL]
+
+                # Append to the CSV
+                with open(r'review-search-ieee.csv', 'a', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(resultRow)
+
+        print('Done.')
 
     def scienceDirect(self):
         # https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&query=
@@ -254,6 +307,7 @@ class Litfetch():
     def springerLink(self):
         # 'http://api.springer.com/metadata/json?api_key='+self.config['springerKey']+'&p=30&q='+searchString+' sort:date'
         # Reset the file
+        # PUBLICATION DATES ARE INCORRECT IN THE SPRINGER API
         csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
         f = open('review-search-springer.csv', "w+")
         f.close()
@@ -296,12 +350,14 @@ class Litfetch():
 
                 paperSource = paper['url'][0]['value']
 
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'ScienceDirect', paperSource, searchURL]
+                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'Springer', paperSource, searchURL]
 
                 # Append to the CSV
                 with open(r'review-search-springer.csv', 'a', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow(resultRow)
+
+            print('Done.')
 
     def wileyOL(self):
         # Using Crossref API: https://github.com/sckott/habanero
@@ -374,7 +430,7 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Combine and remove duplicates from the database CSVs. Write one file.
-        files = ['google', 'sciencedirect', 'springer', 'wiley', 'acm']
+        files = ['google', 'sciencedirect', 'springer', 'wiley', 'acm', 'ieee']
         paperList = {}
 
         for csvData in files:
@@ -392,29 +448,19 @@ class Litfetch():
             for (key, value) in paperList.items():
                 # Too many papers - filter out any before 2016
                 try:
+                    #if int(value[5]) > 2016 and int(value[5]) < 2019:
                     if int(value[5]) > 2016:
                         writer.writerow(value)
                 except:
                     print('Bad date, skipping...')
                     print(value)
 
-        # Connect to the database
-        '''
-        connection = pymysql.connect(host='localhost', port=8889, user='root', password='root', db='litrev', charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-
-        with connection.cursor() as cursor:
-            # Create a new record
-            for (key, value) in paperList.items():
-                if value[5] > 2016:
-                    sql = "INSERT INTO `ami` (`section`,`searched`,`terms`,`title`,`authors`,`published`,`database`,`source`,`url`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-                    cursor.execute(sql, value)
-
-                    # connection is not autocommit by default. So you must commit to save
-                    # your changes.
-                    connection.commit()
-        '''
-
         print('Done.')
+
+    def getSearchString(self, primaryOrSecondary, database):
+        # TODO: Return a boolean search string for the database specified.
+        # primaryOrSecondary determines whether to use just the primary search terms or combine them with the secondaryTerms
+        pass
 
     def getConfig(self):
         # Get the config file details (database login)
