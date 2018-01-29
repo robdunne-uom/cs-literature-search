@@ -17,62 +17,81 @@ from habanero import Crossref
 import json
 import requests
 import pymysql.cursors
+import re
 
 class Litfetch():
     # Constructor
     def __init__(self):
+        # Print the notice
+        self.programNotice()
+
         # Set the search terms
         self.config = self.getConfig()
-        self.startYear = '2011'
-        self.endYear = '2017'
-        self.searchTerms = ['ambient intelligence', 'ambient system', 'smart environment']
-        self.secondaryTerms = [['home','domestic'],['care', 'elderly', 'assisted living', 'assistive'],['healthcare','health','medical'],['shops','shopping','recommender systems','business'],['data','data management','AI','artificial intelligence'],['human','affective'],['social','economic','ethics','ethical']]
-
-        # Depth of results
-        self.maxResults = 30
+        self.searchLimit = 1000
+        self.startYear = '1999'
+        self.endYear = '2021'
+        self.searchString = '(human OR people OR person) AND (behaviour OR behavior OR action OR activity) AND (prediction OR predicting OR forecast OR forecasting) AND (algorithm OR method OR technique OR learning) AND ("smart home" OR "smart environment" OR "smart homes" OR "smart environments" OR "ambient intelligence")'
+        #self.searchString = 'behaviour prediction smart home'
 
         # Perform the search
         self.fetchPapers()
 
     def fetchPapers(self):
         # Databases selection
-        selection = input('Please enter a database or de-duplicate: google, acm, ieee, sciencedirect, springer, wiley, dedupe.\n')
+        selection = input('\nPlease select an option:\n 0. run search\n 1. de-duplicate papers \n 2. exit\n\n> ')
         print('You selected: '+selection)
 
-        if selection == 'google':
-            # Scrape the webpage and append to the CSV
+        if selection == '0':
             print('Searching Google Scholar...')
-            self.googleScholar()
-        elif selection == 'acm':
-            # Call the database API and append to the CSV
+            print('Page results are retrieved with a 5 second delay to prevent blocking of the web scraper.')
+            try:
+                self.googleScholar()
+            except Exception as e:
+                print('Google Scholar failed because: '+str(e))
+
             print('Searching ACM Digital Library...')
-            self.acmDL()
-        elif selection == 'ieee':
-            # Call the database API and append to the CSV
+            try:
+                self.acmDL()
+            except Exception as e:
+                print('ACM Digital Libraryfailed because: '+str(e))
+
             print('Searching IEEE Xplore...')
-            self.ieeeXplore()
-        elif selection == 'sciencedirect':
-            # Call the database API and append to the CSV
+            try:
+                self.ieeeXplore()
+            except Exception as e:
+                print('IEEE Xplore failed because: '+str(e))
+
             print('Searching ScienceDirect...')
-            self.scienceDirect()
-        elif selection == 'springer':
-            # Call the database API and append to the CSV
+            try:
+                self.scienceDirect()
+            except Exception as e:
+                print('ScienceDirect failed because: '+str(e))
+
             print('Searching SpringerLink...')
-            self.springerLink()
-        elif selection == 'wiley':
-            # Call the database API and append to the CSV
+            try:
+                self.springerLink()
+            except Exception as e:
+                print('SpringerLink failed because: '+str(e))
+
             print('Searching Wiley Online Library...')
-            self.wileyOL()
-        elif selection == 'dedupe':
+            try:
+                self.wileyOL()
+            except Exception as e:
+                print('Wiley Online Library failed because: '+str(e))
+
+        elif selection == '1':
             # Write a de-duplicated list as a CSV
-            print('De-duplicating list...')
+            print('De-duplicating list of papers...')
             self.deDuplicatePapers()
+        elif selection == '2':
+            print('Goodbye.')
+            exit()
         else:
             print('Uh oh, I don\'t know what '+selection+' is?')
 
     def googleScholar(self):
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-google.csv', "w+")
         f.close()
         # Append to the CSV
@@ -81,57 +100,51 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching Google Scholar for: '+self.searchString+'.')
+        print('Found:')
 
-            print('Searching Google Scholar for: '+searchString+'.')
-            print('Found:')
+        pageResults = self.searchLimit/10
+        for i in range(int(pageResults)):
+            page = 10*i
+            searchURL = 'https://scholar.google.co.uk/scholar?q='+urllib.parse.quote_plus(self.searchString)+'&hl=en&as_sdt=0%2C5&as_ylo='+self.startYear+'&as_yhi='+self.endYear+'&start='+str(page)
+            #print(searchURL)
+            user_agent = 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)'
+            headers = { 'User-Agent': user_agent }
+            req = urllib.request.Request(searchURL, data=None, headers=headers)
+            with contextlib.closing(urllib.request.urlopen(req)) as get:
+                results = BeautifulSoup(get, "lxml")
+                #print(results)
 
-            pageResults = ['0','10','20']
-            for page in pageResults:
-                searchURL = 'https://scholar.google.co.uk/scholar?q='+urllib.parse.quote_plus(searchString)+'&hl=en&as_sdt=0%2C5&as_ylo='+self.startYear+'&as_yhi='+self.endYear+'&start='+page
-                #print(searchURL)
-                user_agent = 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)'
-                headers = { 'User-Agent': user_agent }
-                req = urllib.request.Request(searchURL, data=None, headers=headers)
-                with contextlib.closing(urllib.request.urlopen(req)) as get:
-                    results = BeautifulSoup(get, "lxml")
-                    #print(results)
+                for paper in results.find_all("div", { "class" : "gs_ri" }):
+                    paperTitle = '-'
+                    paperAuthors = '-'
+                    paperYear = '0000'
+                    paperSource = '-'
 
-                    for paper in results.find_all("div", { "class" : "gs_ri" }):
-                        paperTitle = '-'
-                        paperAuthors = '-'
-                        paperYear = '0000'
-                        paperSource = '-'
+                    for h3 in paper.find_all('h3'):
+                        for title in h3.find_all('a', href=True):
+                            print(title.text)
+                            print(title['href'])
 
-                        for h3 in paper.find_all('h3'):
-                            for title in h3.find_all('a', href=True):
-                                print(title.text)
-                                print(title['href'])
+                            paperTitle = title.text
+                            paperSource = title['href']
 
-                                paperTitle = title.text
-                                paperSource = title['href']
+                    for author in paper.find_all("div", { "class" : "gs_a" }):
+                        paperAuthors = author.text
 
-                        for author in paper.find_all("div", { "class" : "gs_a" }):
-                            paperAuthors = author.text
+                    findYear = re.findall(r'.*([1-3][0-9]{3})', paperAuthors)
+                    if findYear:
+                        paperYear = findYear[0]
 
-                        yearParts = paperAuthors.split('-')
-                        yearParts2 = yearParts[1].split(',')
-                        yearParts2Length = len(yearParts2)-1
-                        paperYear = yearParts2[yearParts2Length]
+                    resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'Google Scholar', paperSource]
 
-                        resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'Google Scholar', paperSource, searchURL]
+                    # Append to the CSV
+                    with open(r'review-search-google.csv', 'a', encoding='utf-8') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(resultRow)
 
-                        # Append to the CSV
-                        with open(r'review-search-google.csv', 'a', encoding='utf-8') as f:
-                            writer = csv.writer(f)
-                            writer.writerow(resultRow)
-
-                # Sleep to prevent bot blocking
-                time.sleep(1)
+            # Sleep to prevent bot blocking
+            time.sleep(5)
 
             print('-----------')
             print('Done.')
@@ -141,7 +154,7 @@ class Litfetch():
         cr = Crossref()
 
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-acm.csv', "w+")
         f.close()
         # Append to the CSV
@@ -149,50 +162,34 @@ class Litfetch():
             writer = csv.writer(f)
             writer.writerow(csvHeader)
 
-        # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching ACM via Crossref for: '+self.searchString+'.')
+        print('Found:')
 
-            searchURL = 'https://api.crossref.org/works?mailto=rob.dunne@manchester.ac.uk&rows=100&from-index-date=2011member=320&query='+searchString;
-            #print(searchURL)
+        results = cr.works(query=self.searchString, limit=self.searchLimit, order='desc', filter={'from-pub-date':self.startYear, 'member': '320'})
+        for paper in results['message']['items']:
+            print(paper['title'][0])
 
-            print('Searching ACM via Crossref for: '+searchString+'.')
-            print('Found:')
+            paperTitle = paper['title'][0]
 
-            results = cr.works(query=searchString, limit=30, order='desc', filter={'from-pub-date':'2011', 'member': '320'})
-            for paper in results['message']['items']:
-                print(paper['title'][0])
-                """
-                print(paper['created']['date-parts'][0][0])
+            paperAuthors = ''
+            try:
                 for author in paper['author']:
-                    print(author['family']+','+author['given'])
-                print(paper['link'][0]['URL'])
-                """
+                    paperAuthors = author['family']+','+author['given']+', '+paperAuthors
+            except KeyError:
+                paperAuthors = 'Not available'
 
-                paperTitle = paper['title'][0]
+            paperYear = paper['created']['date-parts'][0][0]
+            try:
+                paperSource = paper['link'][0]['URL']
+            except KeyError:
+                paperSource = 'Not available'
 
-                paperAuthors = ''
-                try:
-                    for author in paper['author']:
-                        paperAuthors = author['family']+','+author['given']+', '+paperAuthors
-                except KeyError:
-                    paperAuthors = 'Not available'
+            resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'ACM - Crossref', paperSource]
 
-                paperYear = paper['created']['date-parts'][0][0]
-                try:
-                    paperSource = paper['link'][0]['URL']
-                except KeyError:
-                    paperSource = 'Not available'
-
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'ACM - Crossref', paperSource, searchURL]
-
-                # Append to the CSV
-                with open(r'review-search-acm.csv', 'a', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(resultRow)
+            # Append to the CSV
+            with open(r'review-search-acm.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(resultRow)
 
         print('Done.')
 
@@ -203,7 +200,7 @@ class Litfetch():
         cr = Crossref()
 
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-ieee.csv', "w+")
         f.close()
         # Append to the CSV
@@ -211,50 +208,40 @@ class Litfetch():
             writer = csv.writer(f)
             writer.writerow(csvHeader)
 
-        # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching IEEEvia Crossref for: '+self.searchString+'.')
+        print('Found:')
 
-            searchURL = 'https://api.crossref.org/works?mailto=rob.dunne@manchester.ac.uk&rows=100&from-index-date=2011member=263&query='+searchString;
-            #print(searchURL)
+        results = cr.works(query=self.searchString, limit=self.searchLimit, order='desc', filter={'from-pub-date':self.startYear, 'member': '263'})
+        for paper in results['message']['items']:
+            print(paper['title'][0])
 
-            print('Searching IEEEvia Crossref for: '+searchString+'.')
-            print('Found:')
+            paperTitle = paper['title'][0]
+            paperAuthors = ''
+            try:
+                for author in paper['author']:
+                    paperAuthors = author['family']+','+author['given']+', '+paperAuthors
+            except KeyError:
+                paperAuthors = 'Not available'
 
-            results = cr.works(query=searchString, limit=30, order='desc', filter={'from-pub-date':'2011', 'member': '263'})
-            for paper in results['message']['items']:
-                print(paper['title'][0])
+            paperYear = paper['created']['date-parts'][0][0]
+            try:
+                paperSource = paper['link'][0]['URL']
+            except KeyError:
+                paperSource = 'Not available'
 
-                paperTitle = paper['title'][0]
-                paperAuthors = ''
-                try:
-                    for author in paper['author']:
-                        paperAuthors = author['family']+','+author['given']+', '+paperAuthors
-                except KeyError:
-                    paperAuthors = 'Not available'
+            resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'IEEE - Crossref', paperSource]
 
-                paperYear = paper['created']['date-parts'][0][0]
-                try:
-                    paperSource = paper['link'][0]['URL']
-                except KeyError:
-                    paperSource = 'Not available'
-
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'IEEE - Crossref', paperSource, searchURL]
-
-                # Append to the CSV
-                with open(r'review-search-ieee.csv', 'a', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(resultRow)
+            # Append to the CSV
+            with open(r'review-search-ieee.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(resultRow)
 
         print('Done.')
 
     def scienceDirect(self):
         # https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&query=
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-sciencedirect.csv', "w+")
         f.close()
         # Append to the CSV
@@ -263,44 +250,38 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching ScienceDirect for: '+self.searchString+'.')
+        print('Found:')
 
-            print('Searching ScienceDirect for: '+searchString+'.')
-            print('Found:')
+        searchURL = 'https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&count='+str(self.searchLimit)+'&sort=-date&httpAccept=application%2Fjson&query='+urllib.parse.quote_plus(self.searchString)
+        data = json.loads(requests.get(searchURL).text)
 
-            searchURL = 'https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&count=30&sort=-date&httpAccept=application%2Fjson&query='+urllib.parse.quote_plus(searchString)
-            data = json.loads(requests.get(searchURL).text)
+        for paper in data['search-results']['entry']:
+            print(paper['dc:title'])
+            for author in paper['authors']['author']:
+                print(author['surname']+','+author['given-name'])
 
-            for paper in data['search-results']['entry']:
-                print(paper['dc:title'])
-                for author in paper['authors']['author']:
-                    print(author['surname']+','+author['given-name'])
+            dateLong = paper['prism:coverDate'][0]['$'].split('-')
+            paperYear = dateLong[0]
+            print(paperYear)
+            print(paper['link'][0]['@href'])
 
-                dateLong = paper['prism:coverDate'][0]['$'].split('-')
-                paperYear = dateLong[0]
-                print(paperYear)
-                print(paper['link'][0]['@href'])
+            paperTitle = paper['dc:title']
+            paperAuthors = ''
+            for author in paper['authors']['author']:
+                paperAuthors = author['surname']+','+author['given-name']+', '+paperAuthors
 
-                paperTitle = paper['dc:title']
-                paperAuthors = ''
-                for author in paper['authors']['author']:
-                    paperAuthors = author['surname']+','+author['given-name']+', '+paperAuthors
+            dateLong = paper['prism:coverDate'][0]['$'].split('-')
+            paperYear = dateLong[0]
 
-                dateLong = paper['prism:coverDate'][0]['$'].split('-')
-                paperYear = dateLong[0]
+            paperSource = paper['link'][0]['@href']
 
-                paperSource = paper['link'][0]['@href']
+            resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'ScienceDirect', paperSource]
 
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'ScienceDirect', paperSource, searchURL]
-
-                # Append to the CSV
-                with open(r'review-search-sciencedirect.csv', 'a', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(resultRow)
+            # Append to the CSV
+            with open(r'review-search-sciencedirect.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(resultRow)
 
         print('Done.')
 
@@ -308,7 +289,7 @@ class Litfetch():
         # 'http://api.springer.com/metadata/json?api_key='+self.config['springerKey']+'&p=30&q='+searchString+' sort:date'
         # Reset the file
         # PUBLICATION DATES ARE INCORRECT IN THE SPRINGER API
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-springer.csv', "w+")
         f.close()
         # Append to the CSV
@@ -317,54 +298,48 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching SpringerLink for: '+self.searchString+'.')
+        print('Found:')
 
-            print('Searching SpringerLink for: '+searchString+'.')
-            print('Found:')
+        searchURL = 'http://api.springer.com/metadata/json?api_key='+self.config['springerKey']+'&p='+str(self.searchLimit)+'&q='+urllib.parse.quote_plus(self.searchString)+' sort:date'
+        data = json.loads(requests.get(searchURL).text)
+        print(searchURL)
 
-            searchURL = 'http://api.springer.com/metadata/json?api_key='+self.config['springerKey']+'&p=30&q='+urllib.parse.quote_plus(searchString)+' sort:date'
-            data = json.loads(requests.get(searchURL).text)
-            print(searchURL)
+        for paper in data['records']:
+            print(paper['title'])
+            for author in paper['creators']:
+                print(author['creator'])
 
-            for paper in data['records']:
-                print(paper['title'])
-                for author in paper['creators']:
-                    print(author['creator'])
+            dateLong = paper['publicationDate'].split('-')
+            paperYear = dateLong[0]
+            print(paperYear)
+            print(paper['url'][0]['value'])
 
-                dateLong = paper['publicationDate'].split('-')
-                paperYear = dateLong[0]
-                print(paperYear)
-                print(paper['url'][0]['value'])
+            paperTitle = paper['title']
+            paperAuthors = ''
+            for author in paper['creators']:
+                paperAuthors = author['creator']+', '+paperAuthors
 
-                paperTitle = paper['title']
-                paperAuthors = ''
-                for author in paper['creators']:
-                    paperAuthors = author['creator']+', '+paperAuthors
+            dateLong = paper['publicationDate'].split('-')
+            paperYear = dateLong[0]
 
-                dateLong = paper['publicationDate'].split('-')
-                paperYear = dateLong[0]
+            paperSource = paper['url'][0]['value']
 
-                paperSource = paper['url'][0]['value']
+            resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'Springer', paperSource]
 
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'Springer', paperSource, searchURL]
+            # Append to the CSV
+            with open(r'review-search-springer.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(resultRow)
 
-                # Append to the CSV
-                with open(r'review-search-springer.csv', 'a', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(resultRow)
-
-            print('Done.')
+        print('Done.')
 
     def wileyOL(self):
         # Using Crossref API: https://github.com/sckott/habanero
         cr = Crossref()
 
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-wiley.csv', "w+")
         f.close()
         # Append to the CSV
@@ -373,55 +348,48 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Get the Google scholar papers
-        for terms in self.secondaryTerms:
-            searchString = '('+self.searchTerms[0]+' OR '+self.searchTerms[1]+' OR '+self.searchTerms[2]+') AND ('
-            secondaryTerms = ' OR '.join(terms)
-            searchString = searchString+secondaryTerms+')'
-            #print(searchString)
+        print('Searching Wiley-Blackwell via Crossref for: '+self.searchString+'.')
+        print('Found:')
 
-            searchURL = 'https://api.crossref.org/works?mailto=rob.dunne@manchester.ac.uk&rows=100&from-index-date=2011member=311&query='+searchString;
-            #print(searchURL)
+        results = cr.works(query=self.searchString, limit=self.searchLimit, order='desc', filter={'from-pub-date':self.startYear, 'member': '311'})
+        for paper in results['message']['items']:
+            print(paper['title'][0])
+            """
+            print(paper['created']['date-parts'][0][0])
+            for author in paper['author']:
+                print(author['family']+','+author['given'])
+            print(paper['link'][0]['URL'])
+            """
 
-            print('Searching Wiley-Blackwell via Crossref for: '+searchString+'.')
-            print('Found:')
+            paperTitle = paper['title'][0]
 
-            results = cr.works(query=searchString, limit=30, order='desc', filter={'from-pub-date':'2011', 'member': '311'})
-            for paper in results['message']['items']:
-                print(paper['title'][0])
-                """
-                print(paper['created']['date-parts'][0][0])
+            paperAuthors = ''
+            try:
                 for author in paper['author']:
-                    print(author['family']+','+author['given'])
-                print(paper['link'][0]['URL'])
-                """
+                    paperAuthors = author['family']+','+author['given']+', '+paperAuthors
+            except KeyError:
+                paperAuthors = 'Not available'
 
-                paperTitle = paper['title'][0]
+            paperYear = paper['created']['date-parts'][0][0]
+            try:
+                paperSource = paper['link'][0]['URL']
+            except KeyError:
+                paperSource = 'Not available'
 
-                paperAuthors = ''
-                try:
-                    for author in paper['author']:
-                        paperAuthors = author['family']+','+author['given']+', '+paperAuthors
-                except KeyError:
-                    paperAuthors = 'Not available'
+            resultRow = [time.strftime("%d/%m/%Y"), paperTitle, paperAuthors, paperYear, 'Wiley - Crossref', paperSource]
 
-                paperYear = paper['created']['date-parts'][0][0]
-                try:
-                    paperSource = paper['link'][0]['URL']
-                except KeyError:
-                    paperSource = 'Not available'
-
-                resultRow = [",".join(terms), time.strftime("%d/%m/%Y"), searchString, paperTitle, paperAuthors, paperYear, 'Wiley - Crossref', paperSource, searchURL]
-
-                # Append to the CSV
-                with open(r'review-search-wiley.csv', 'a', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(resultRow)
+            # Append to the CSV
+            with open(r'review-search-wiley.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(resultRow)
 
         print('Done.')
 
     def deDuplicatePapers(self):
+        totalRows = 0
+        deDupedRows = 0
         # Reset the file
-        csvHeader = ['section','searched','terms','title','authors','published','database','source','url']
+        csvHeader = ['searched','title','authors','published','database','source']
         f = open('review-search-deduped.csv', "w+")
         f.close()
         # Append to the CSV
@@ -435,31 +403,33 @@ class Litfetch():
 
         for csvData in files:
             with open('review-search-'+csvData+'.csv', newline='') as csvfile1:
+                print('Deduplicating review-search-'+csvData+'.csv')
                 data1 = csv.reader(csvfile1, delimiter=',', quotechar='"')
                 for entry in data1:
-                    print(entry[0])
-                    print(entry[3])
-                    if entry[0] != 'section':
-                        paperList[entry[3]] = entry
+                    # Skip the header
+                    if entry[0] != 'searched':
+                        # Add the row to a dictionary - duplicate keys (paper titles) are overwritten, thus deduplicating.
+                        if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
+                            paperList[entry[1]] = entry
+
+                        totalRows = totalRows+1
 
         # Append to the CSV
         with open(r'review-search-deduped.csv', 'a', encoding='utf-8') as f:
+            print('Adding de-duplicated papers to review-search-deduped.csv')
             writer = csv.writer(f)
             for (key, value) in paperList.items():
-                # Too many papers - filter out any before 2016
-                try:
-                    #if int(value[5]) > 2016 and int(value[5]) < 2019:
-                    if int(value[5]) > 2016:
-                        writer.writerow(value)
-                except:
-                    print('Bad date, skipping...')
-                    print(value)
+                writer.writerow(value)
+                deDupedRows = deDupedRows+1
 
         print('Done.')
+        print('Total papers: '+str(totalRows))
+        print('De-duplicated papers: '+str(deDupedRows))
 
     def getSearchString(self, primaryOrSecondary, database):
         # TODO: Return a boolean search string for the database specified.
         # primaryOrSecondary determines whether to use just the primary search terms or combine them with the secondaryTerms
+        # Search terms are contained in files ./searchterms/primary.csv and ./searchterms/secondary.csv
         pass
 
     def getConfig(self):
@@ -471,5 +441,11 @@ class Litfetch():
                 d[key] = val.replace('\n', '').strip()
 
             return d
+
+    def programNotice(self):
+        print('****************************************************************')
+        print('*** Computer Science database search script. UoM CS, 2018    ***')
+        print('*** This software is provided as is, under an MIT licence    ***')
+        print('****************************************************************')
 
 Litfetch()
