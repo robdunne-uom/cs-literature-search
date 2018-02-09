@@ -9,6 +9,7 @@ Useful list of APIs for further expansion: https://libraries.mit.edu/scholarly/p
 """
 
 import urllib
+import urllib.parse
 from bs4 import BeautifulSoup, SoupStrainer
 import time
 import csv
@@ -38,7 +39,7 @@ class Litfetch():
 
     def fetchPapers(self):
         # Databases selection
-        selection = input('\nPlease select an option:\n 0. run search\n 1. de-duplicate papers \n 2. exit\n\n> ')
+        selection = input('\nPlease select an option:\n 0. run search\n 1. de-duplicate papers\n 2. grey literature\n 3. exit\n\n> ')
         print('You selected: '+selection)
 
         if selection == '0':
@@ -83,7 +84,13 @@ class Litfetch():
             # Write a de-duplicated list as a CSV
             print('De-duplicating list of papers...')
             self.deDuplicatePapers()
+
         elif selection == '2':
+            # Search grey literature
+            print('Searching grey literature...')
+            self.researchGate()
+
+        elif selection == '3':
             print('Goodbye.')
             exit()
         else:
@@ -384,6 +391,33 @@ class Litfetch():
                 writer.writerow(resultRow)
 
         print('Done.')
+
+    def researchGate(self):
+        searchURL = "https://www.researchgate.net/search.SearchBox.loadMore.html?type=publication&query="+urllib.parse.quote(self.searchString)+"&offset=0&limit=200&viewId=IDlNl4Vyl3nQ7giYvShhPkj1dMkru0GibMJ3&iepl%5BgeneralViewId%5D=YQZWEQPe4YAuAN1ntHw4KLcXcJGRwZ1Eztzq&iepl%5Bcontexts%5D%5B0%5D=searchReact&subfilter"
+
+        with urllib.request.urlopen(searchURL) as url:
+            data = json.loads(url.read().decode())
+
+            # Reset the file
+            csvHeader = ['Searched','Title','Authors','Published','Type','Include?','Exclusion code','Database','Source']
+            f = open('review-search-researchgate.csv', "w+")
+            f.close()
+            # Append to the CSV
+            with open(r'review-search-researchgate.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(csvHeader)
+
+            # Append to the CSV
+            with open(r'review-search-researchgate.csv', 'a', encoding='utf-8') as f:
+                print('Adding researchgate papers to review-search-researchgate.csv')
+                writer = csv.writer(f)
+                for item in data['result']['searchSearch']['publication']['items']:
+                    try:
+                        writer.writerow([time.strftime("%d/%m/%Y"), item['title'], item['authors'][0]['name'], item['metaItems'][0]['label'], item['type'], '', '', 'ResearchGate', 'https://www.researchgate.net/'+item['urls']['CTA']])
+                    except:
+                        pass
+
+        print('ResearchGate done.')
 
     def deDuplicatePapers(self):
         totalRows = 0
