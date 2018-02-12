@@ -30,9 +30,10 @@ class Litfetch():
         # Set the search terms
         self.config = self.getConfig()
         self.searchLimit = 1000
-        self.startYear = '1999'
-        self.endYear = '2021'
-        self.searchString = '(human OR people OR person) AND (behaviour OR behavior OR action OR activity) AND (prediction OR predicting OR forecast OR forecasting) AND (algorithm OR method OR technique OR learning) AND ("smart home" OR "smart environment" OR "smart homes" OR "smart environments" OR "ambient intelligence")'
+        self.startYear = '2005'
+        self.endYear = '2014'
+        self.searchString = '((predict OR predicting OR prediction) AND arousal) OR ((detect OR detecting OR detection) AND arousal) OR ((sense OR sensing) AND arousal) OR ((measure OR measuring) AND arousal) OR ((capture OR capturing) AND arousal)'
+        #self.searchString = '(human OR people OR person) AND (behaviour OR behavior OR action OR activity) AND (prediction OR predicting OR forecast OR forecasting) AND (algorithm OR method OR technique OR learning) AND ("smart home" OR "smart environment" OR "smart homes" OR "smart environments" OR "ambient intelligence")'
         #self.searchString = 'behaviour prediction smart home'
 
         # Perform the search
@@ -80,6 +81,7 @@ class Litfetch():
                 self.wileyOL()
             except Exception as e:
                 print('Wiley Online Library failed because: '+str(e))
+
             print('Searching PubMed...')
             try:
                 self.pubmed()
@@ -273,7 +275,12 @@ class Litfetch():
         print('Searching ScienceDirect for: '+self.searchString+'.')
         print('Found:')
 
-        searchURL = 'https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&count='+str(self.searchLimit)+'&sort=-date&httpAccept=application%2Fjson&query='+urllib.parse.quote_plus(self.searchString)
+        searchLimit = self.searchLimit
+        if searchLimit > 500:
+            searchLimit = 500
+
+        searchURL = 'https://api.elsevier.com/content/search/scidir?apiKey='+self.config['sdKey']+'&count='+str(searchLimit)+'&sort=-date&httpAccept=application%2Fjson&query='+urllib.parse.quote_plus(self.searchString)
+        print(searchURL)
         data = json.loads(requests.get(searchURL).text)
 
         for paper in data['search-results']['entry']:
@@ -428,6 +435,7 @@ class Litfetch():
                     with urllib.request.urlopen('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&rettype=abstract&id='+str(item)) as url2:
                         paper = json.loads(url2.read().decode())
                         try:
+                            print(paper['result'][str(item)]['title'])
                             writer.writerow([time.strftime("%d/%m/%Y"), paper['result'][str(item)]['title'], paper['result'][str(item)]['authors'][0]['name'], paper['result'][str(item)]['pubdate'], 'PubMed', 'https://www.ncbi.nlm.nih.gov/pubmed/'+str(item)])
                         except Exception as exception:
                             print(exception)
