@@ -435,7 +435,7 @@ class Litfetch():
         print('PubMed done.')
 
     def researchGate(self):
-        searchURL = "https://www.researchgate.net/search.SearchBox.loadMore.html?type=publication&query="+urllib.parse.quote(self.searchString)+"&offset=0&limit=200&viewId=IDlNl4Vyl3nQ7giYvShhPkj1dMkru0GibMJ3&iepl%5BgeneralViewId%5D=YQZWEQPe4YAuAN1ntHw4KLcXcJGRwZ1Eztzq&iepl%5Bcontexts%5D%5B0%5D=searchReact&subfilter"
+        searchURL = "https://www.researchgate.net/search.SearchBox.loadMore.html?type=publication&query="+urllib.parse.quote(self.searchString)+"&offset=0&limit="+str(self.searchLimit)+"&viewId=IDlNl4Vyl3nQ7giYvShhPkj1dMkru0GibMJ3&iepl%5BgeneralViewId%5D=YQZWEQPe4YAuAN1ntHw4KLcXcJGRwZ1Eztzq&iepl%5Bcontexts%5D%5B0%5D=searchReact&subfilter"
 
         with urllib.request.urlopen(searchURL) as url:
             data = json.loads(url.read().decode())
@@ -462,8 +462,8 @@ class Litfetch():
         print('ResearchGate done.')
 
     def arxiv(self):
-        #searchURL = "http://export.arxiv.org/api/query?search_query=all:"+self.searchString+"&start=0&max_results=100"
-        searchURL = "http://export.arxiv.org/api/query?search_query=all:"+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')+"&start=0&max_results=100"
+        searchURL = "http://export.arxiv.org/api/query?search_query=all:"+self.searchString+"&start=0&max_results="+str(self.searchLimit)
+        #searchURL = "http://export.arxiv.org/api/query?search_query=all:"+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')+"&start=0&max_results=100"
 
         xml = requests.get(searchURL).text
 
@@ -494,8 +494,8 @@ class Litfetch():
         print('arXiv done.')
 
     def zenodo(self):
-        #searchURL = "https://zenodo.org/api/records/?q="+urllib.parse.quote(self.searchString)
-        searchURL = "https://zenodo.org/api/records/?size=100q="+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')
+        searchURL = "https://zenodo.org/api/records/?q="+urllib.parse.quote(self.searchString)+"&size="+str(self.searchLimit)
+        #searchURL = "https://zenodo.org/api/records/?size=100q="+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')
 
         with urllib.request.urlopen(searchURL) as url:
             data = json.loads(url.read().decode())
@@ -610,7 +610,7 @@ class Litfetch():
         pass
 
     def getConfig(self):
-        # Get the config file details (database login)
+        # Get the config file details
         d = {}
         with open(".config") as f:
             for line in f:
