@@ -19,6 +19,7 @@ import json
 import requests
 import pymysql.cursors
 import re
+import xml.etree.ElementTree as ET
 
 class Litfetch():
     # Constructor
@@ -39,7 +40,7 @@ class Litfetch():
 
     def fetchPapers(self):
         # Databases selection
-        selection = input('\nPlease select an option:\n 0. run search\n 1. de-duplicate papers\n 2. grey literature\n 3. exit\n\n> ')
+        selection = input('\nPlease select an option:\n 0. run search\n 1. de-duplicate papers\n 2. grey literature\n 3. de-duplicate grey literature\n 4. exit\n\n> ')
         print('You selected: '+selection)
 
         if selection == '0':
@@ -79,6 +80,11 @@ class Litfetch():
                 self.wileyOL()
             except Exception as e:
                 print('Wiley Online Library failed because: '+str(e))
+            print('Searching PubMed...')
+            try:
+                self.pubmed()
+            except Exception as e:
+                print('PubMed failed because: '+str(e))
 
         elif selection == '1':
             # Write a de-duplicated list as a CSV
@@ -89,8 +95,15 @@ class Litfetch():
             # Search grey literature
             print('Searching grey literature...')
             self.researchGate()
+            self.arxiv()
+            self.zenodo()
 
         elif selection == '3':
+            # De-duplicate grey literature
+            print('De-duplicating grey literature...')
+            self.deDuplicateGrey()
+
+        elif selection == '4':
             print('Goodbye.')
             exit()
         else:
@@ -392,6 +405,35 @@ class Litfetch():
 
         print('Done.')
 
+    def pubmed(self):
+        searchURL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term="+urllib.parse.quote(self.searchString)+"&retmode=json&retmax="+str(self.searchLimit)
+
+        with urllib.request.urlopen(searchURL) as url:
+            data = json.loads(url.read().decode())
+
+            # Reset the file
+            csvHeader = ['searched','title','authors','published','database','source']
+            f = open('review-search-pubmed.csv', "w+")
+            f.close()
+            # Append to the CSV
+            with open(r'review-search-pubmed.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(csvHeader)
+
+            # Append to the CSV
+            with open(r'review-search-pubmed.csv', 'a', encoding='utf-8') as f:
+                print('Adding PubMed papers to review-search-pubmed.csv')
+                writer = csv.writer(f)
+                for item in data['esearchresult']['idlist']:
+                    with urllib.request.urlopen('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&rettype=abstract&id='+str(item)) as url2:
+                        paper = json.loads(url2.read().decode())
+                        try:
+                            writer.writerow([time.strftime("%d/%m/%Y"), paper['result'][str(item)]['title'], paper['result'][str(item)]['authors'][0]['name'], paper['result'][str(item)]['pubdate'], 'PubMed', 'https://www.ncbi.nlm.nih.gov/pubmed/'+str(item)])
+                        except Exception as exception:
+                            print(exception)
+
+        print('PubMed done.')
+
     def researchGate(self):
         searchURL = "https://www.researchgate.net/search.SearchBox.loadMore.html?type=publication&query="+urllib.parse.quote(self.searchString)+"&offset=0&limit=200&viewId=IDlNl4Vyl3nQ7giYvShhPkj1dMkru0GibMJ3&iepl%5BgeneralViewId%5D=YQZWEQPe4YAuAN1ntHw4KLcXcJGRwZ1Eztzq&iepl%5Bcontexts%5D%5B0%5D=searchReact&subfilter"
 
@@ -409,15 +451,75 @@ class Litfetch():
 
             # Append to the CSV
             with open(r'review-search-researchgate.csv', 'a', encoding='utf-8') as f:
-                print('Adding researchgate papers to review-search-researchgate.csv')
+                print('Adding ResearchGate papers to review-search-researchgate.csv')
                 writer = csv.writer(f)
                 for item in data['result']['searchSearch']['publication']['items']:
                     try:
                         writer.writerow([time.strftime("%d/%m/%Y"), item['title'], item['authors'][0]['name'], item['metaItems'][0]['label'], item['type'], '', '', 'ResearchGate', 'https://www.researchgate.net/'+item['urls']['CTA']])
-                    except:
-                        pass
+                    except Exception as exception:
+                        print(exception)
 
         print('ResearchGate done.')
+
+    def arxiv(self):
+        #searchURL = "http://export.arxiv.org/api/query?search_query=all:"+self.searchString+"&start=0&max_results=100"
+        searchURL = "http://export.arxiv.org/api/query?search_query=all:"+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')+"&start=0&max_results=100"
+
+        xml = requests.get(searchURL).text
+
+        # Reset the file
+        csvHeader = ['Searched','Title','Authors','Published','Type','Include?','Exclusion code','Database','Source']
+        f = open('review-search-arxiv.csv', "w+")
+        f.close()
+        # Append to the CSV
+        with open(r'review-search-arxiv.csv', 'a', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(csvHeader)
+
+        # Append to the CSV
+        with open(r'review-search-arxiv.csv', 'a', encoding='utf-8') as f:
+            print('Adding arXiv papers to review-search-arxiv.csv')
+            writer = csv.writer(f)
+            xmlstring = re.sub(' xmlns="[^"]+"', '', xml, count=1)
+            root = ET.fromstring(xmlstring)
+
+            for item in root:
+                if item.tag == 'entry':
+                    entry = item
+                    try:
+                        writer.writerow([time.strftime("%d/%m/%Y"), entry[3].text, entry[5][0].text, entry[2].text, '-', '', '', 'arXiv', entry[0].text])
+                    except Exception as exception:
+                        print(exception)
+
+        print('arXiv done.')
+
+    def zenodo(self):
+        #searchURL = "https://zenodo.org/api/records/?q="+urllib.parse.quote(self.searchString)
+        searchURL = "https://zenodo.org/api/records/?size=100q="+urllib.parse.quote('Human behaviour behavior predict smart home ambient intelligence')
+
+        with urllib.request.urlopen(searchURL) as url:
+            data = json.loads(url.read().decode())
+
+            # Reset the file
+            csvHeader = ['Searched','Title','Authors','Published','Type','Include?','Exclusion code','Database','Source']
+            f = open('review-search-zenodo.csv', "w+")
+            f.close()
+            # Append to the CSV
+            with open(r'review-search-zenodo.csv', 'a', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(csvHeader)
+
+            # Append to the CSV
+            with open(r'review-search-zenodo.csv', 'a', encoding='utf-8') as f:
+                print('Adding Zenodo papers to review-search-zenodo.csv')
+                writer = csv.writer(f)
+                for item in data['hits']['hits']:
+                    try:
+                        writer.writerow([time.strftime("%d/%m/%Y"), item['metadata']['title'], item['metadata']['creators'][0]['name'], item['metadata']['publication_date'], item['metadata']['resource_type']['subtype'], '', '', 'Zenodo', item['links']['html']])
+                    except Exception as exception:
+                        print(exception)
+
+        print('Zenodo done.')
 
     def deDuplicatePapers(self):
         totalRows = 0
@@ -432,7 +534,7 @@ class Litfetch():
             writer.writerow(csvHeader)
 
         # Combine and remove duplicates from the database CSVs. Write one file.
-        files = ['google', 'sciencedirect', 'springer', 'wiley', 'acm', 'ieee']
+        files = ['google', 'sciencedirect', 'springer', 'wiley', 'acm', 'ieee', 'pubmed']
         paperList = {}
 
         for csvData in files:
@@ -443,8 +545,8 @@ class Litfetch():
                     # Skip the header
                     if entry[0] != 'searched':
                         # Add the row to a dictionary - duplicate keys (paper titles) are overwritten, thus deduplicating.
-                        if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
-                            paperList[entry[1]] = entry
+                        #if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
+                        paperList[entry[1]] = entry
 
                         totalRows = totalRows+1
 
@@ -459,6 +561,47 @@ class Litfetch():
         print('Done.')
         print('Total papers: '+str(totalRows))
         print('De-duplicated papers: '+str(deDupedRows))
+
+    def deDuplicateGrey(self):
+        totalRows = 0
+        deDupedRows = 0
+        # Reset the file
+        csvHeader = ['Searched','Title','Authors','Published','Type','Include?','Exclusion code','Database','Source']
+        f = open('review-search-deduped-grey.csv', "w+")
+        f.close()
+        # Append to the CSV
+        with open(r'review-search-deduped-grey.csv', 'a', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(csvHeader)
+
+        # Combine and remove duplicates from the database CSVs. Write one file.
+        files = ['researchgate', 'arxiv', 'zenodo']
+        paperList = {}
+
+        for csvData in files:
+            with open('review-search-'+csvData+'.csv', newline='') as csvfile1:
+                print('Deduplicating review-search-'+csvData+'.csv')
+                data1 = csv.reader(csvfile1, delimiter=',', quotechar='"')
+                for entry in data1:
+                    # Skip the header
+                    if entry[0] != 'searched':
+                        # Add the row to a dictionary - duplicate keys (paper titles) are overwritten, thus deduplicating.
+                        #if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
+                        paperList[entry[1]] = entry
+
+                        totalRows = totalRows+1
+
+        # Append to the CSV
+        with open(r'review-search-deduped-grey.csv', 'a', encoding='utf-8') as f:
+            print('Adding de-duplicated grey literature to review-search-deduped-grey.csv')
+            writer = csv.writer(f)
+            for (key, value) in paperList.items():
+                writer.writerow(value)
+                deDupedRows = deDupedRows+1
+
+        print('Done.')
+        print('Total grey literature papers: '+str(totalRows))
+        print('De-duplicated grey literature papers: '+str(deDupedRows))
 
     def getSearchString(self, primaryOrSecondary, database):
         # TODO: Return a boolean search string for the database specified.
