@@ -45,6 +45,7 @@ class Litfetch():
         print('You selected: '+selection)
 
         if selection == '0':
+            """
             print('Searching Google Scholar...')
             print('Page results are retrieved with a 5 second delay to prevent blocking of the web scraper.')
             try:
@@ -81,7 +82,7 @@ class Litfetch():
                 self.wileyOL()
             except Exception as e:
                 print('Wiley Online Library failed because: '+str(e))
-
+            """
             print('Searching PubMed...')
             try:
                 self.pubmed()
@@ -436,7 +437,11 @@ class Litfetch():
                         paper = json.loads(url2.read().decode())
                         try:
                             print(paper['result'][str(item)]['title'])
-                            writer.writerow([time.strftime("%d/%m/%Y"), paper['result'][str(item)]['title'], paper['result'][str(item)]['authors'][0]['name'], paper['result'][str(item)]['pubdate'], 'PubMed', 'https://www.ncbi.nlm.nih.gov/pubmed/'+str(item)])
+                            pY = paper['result'][str(item)]['pubdate']
+                            pY2 = pY.split(' ')
+                            paperYear = pY2[0]
+
+                            writer.writerow([time.strftime("%d/%m/%Y"), paper['result'][str(item)]['title'], paper['result'][str(item)]['authors'][0]['name'], paperYear, 'PubMed', 'https://www.ncbi.nlm.nih.gov/pubmed/'+str(item)])
                         except Exception as exception:
                             print(exception)
 
@@ -554,7 +559,10 @@ class Litfetch():
                     if entry[0] != 'searched':
                         # Add the row to a dictionary - duplicate keys (paper titles) are overwritten, thus deduplicating.
                         #if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
-                        paperList[entry[1]] = entry
+                        if 'arousal' in entry[1] and ('detect' in entry[1] or 'predict' in entry[1] or 'captur' in entry[1] or 'sens' in entry[1] or 'measur' in entry[1]): # Inclusion criteria
+                            # Filter by year
+                            if int(entry[3]) > 2004 and int(entry[3]) < 2015:
+                                paperList[entry[1]] = entry
 
                         totalRows = totalRows+1
 
