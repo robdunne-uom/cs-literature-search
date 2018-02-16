@@ -32,8 +32,8 @@ class Litfetch():
         self.searchLimit = 1000
         self.startYear = '2005'
         self.endYear = '2014'
-        self.searchString = '((predict OR predicting OR prediction) AND arousal) OR ((detect OR detecting OR detection) AND arousal) OR ((sense OR sensing) AND arousal) OR ((measure OR measuring) AND arousal) OR ((capture OR capturing) AND arousal)'
-        #self.searchString = '(human OR people OR person) AND (behaviour OR behavior OR action OR activity) AND (prediction OR predicting OR forecast OR forecasting) AND (algorithm OR method OR technique OR learning) AND ("smart home" OR "smart environment" OR "smart homes" OR "smart environments" OR "ambient intelligence")'
+        #self.searchString = '((predict OR predicting OR prediction) AND arousal) OR ((detect OR detecting OR detection) AND arousal) OR ((sense OR sensing) AND arousal) OR ((measure OR measuring) AND arousal) OR ((capture OR capturing) AND arousal)'
+        self.searchString = '(human OR people OR person) AND (behaviour OR behavior OR action OR activity) AND (prediction OR predicting OR forecast OR forecasting) AND (algorithm OR method OR technique OR learning) AND ("smart home" OR "smart environment" OR "smart homes" OR "smart environments" OR "ambient intelligence")'
         #self.searchString = 'behaviour prediction smart home'
 
         # Perform the search
@@ -558,11 +558,11 @@ class Litfetch():
                     # Skip the header
                     if entry[0] != 'searched':
                         # Add the row to a dictionary - duplicate keys (paper titles) are overwritten, thus deduplicating.
-                        #if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
-                        if 'arousal' in entry[1] and ('detect' in entry[1] or 'predict' in entry[1] or 'captur' in entry[1] or 'sens' in entry[1] or 'measur' in entry[1]): # Inclusion criteria
+                        if 'predict' in entry[1] or 'forecast' in entry[1]: # Inclusion criteria 1, IC1.
+                        #if 'arousal' in entry[1] and ('detect' in entry[1] or 'predict' in entry[1] or 'captur' in entry[1] or 'sens' in entry[1] or 'measur' in entry[1]): # Inclusion criteria
                             # Filter by year
-                            if int(entry[3]) > 2004 and int(entry[3]) < 2015:
-                                paperList[entry[1]] = entry
+                            #if int(entry[3]) > 2004 and int(entry[3]) < 2015:
+                            paperList[entry[1]] = entry
 
                         totalRows = totalRows+1
 
