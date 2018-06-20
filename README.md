@@ -10,3 +10,12 @@ keyName: keyValue
 keyName: keyValue
 keyName: keyValue
 ```
+# Citation
+```
+@Misc{
+author =   {Robert Dunne},
+title =    {CS literature search},
+howpublished = {\url{https://github.com/robdunne-uom/cs-literature-search/edit/master/README.md}},
+year = {2017--2018}
+}
+```
