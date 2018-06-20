@@ -15,7 +15,7 @@ keyName: keyValue
 @Misc{
 author =   {Robert Dunne},
 title =    {CS literature search},
-howpublished = {\url{https://github.com/robdunne-uom/cs-literature-search/edit/master/README.md}},
+howpublished = {\url{https://github.com/robdunne-uom/cs-literature-search/}},
 year = {2017--2018}
 }
 ```
